@@ -149,6 +149,7 @@ use MOM_tracer_registry,       only : lock_tracer_registry, tracer_registry_end
 use MOM_tracer_flow_control,   only : call_tracer_register, tracer_flow_control_CS
 use MOM_tracer_flow_control,   only : tracer_flow_control_init, call_tracer_surface_state
 use MOM_tracer_flow_control,   only : tracer_flow_control_end, call_tracer_register_obc_segments
+use MOM_tracer_flow_control,   only : tracer_register_state_pointers
 use MOM_transcribe_grid,       only : copy_dyngrid_to_MOM_grid, copy_MOM_grid_to_dyngrid
 use MOM_unit_scaling,          only : unit_scale_type, unit_scaling_init, unit_scaling_end
 use MOM_variables,             only : surface, allocate_surface_state, deallocate_surface_state
@@ -3066,6 +3067,7 @@ subroutine initialize_MOM(Time, Time_init, param_file, dirs, CS, &
   ! Additional calls can be added to MOM_tracer_flow_control.F90.
   call call_tracer_register(G, GV, US, param_file, CS%tracer_flow_CSp, &
                             CS%tracer_Reg, restart_CSp)
+  call tracer_register_state_pointers(CS%tracer_flow_CSp, CS%u, CS%v)
 
   call MEKE_alloc_register_restart(HI, US, param_file, CS%MEKE, restart_CSp)
   call set_visc_register_restarts(HI, G, GV, US, param_file, CS%visc, restart_CSp, use_ice_shelf)

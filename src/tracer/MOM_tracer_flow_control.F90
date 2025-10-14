@@ -75,6 +75,9 @@ use boundary_impulse_tracer, only : boundary_impulse_stock, boundary_impulse_tra
 use boundary_impulse_tracer, only : boundary_impulse_tracer_CS
 use nw2_tracers, only : nw2_tracers_CS, register_nw2_tracers, nw2_tracer_column_physics
 use nw2_tracers, only : initialize_nw2_tracers, nw2_tracers_end
+use pde_tracer, only : register_pde_tracer, initialize_pde_tracer
+use pde_tracer, only : pde_tracer_column_physics, pde_tracer_end, pde_tracer_CS
+use pde_tracer, only : register_pde_state_pointers
 
 implicit none ; private
 
@@ -82,6 +85,7 @@ public call_tracer_register, tracer_flow_control_init, call_tracer_set_forcing
 public call_tracer_column_fns, call_tracer_surface_state, call_tracer_stocks
 public call_tracer_flux_init, get_chl_from_model, tracer_flow_control_end
 public call_tracer_register_obc_segments
+public tracer_register_state_pointers
 
 !> The control structure for orchestrating the calling of tracer packages
 type, public :: tracer_flow_control_CS ; private
@@ -119,6 +123,9 @@ type, public :: tracer_flow_control_CS ; private
   type(boundary_impulse_tracer_CS), pointer :: boundary_impulse_tracer_CSp => NULL()
   type(dyed_obc_tracer_CS), pointer :: dyed_obc_tracer_CSp => NULL()
   type(nw2_tracers_CS), pointer :: nw2_tracers_CSp => NULL()
+
+  logical :: use_pde_tracer = .false.
+  type(pde_tracer_CS), pointer :: pde_tracer_CSp => NULL()
   !>@}
 end type tracer_flow_control_CS
 
@@ -235,6 +242,9 @@ subroutine call_tracer_register(G, GV, US, param_file, CS, tr_Reg, restart_CS)
   call get_param(param_file, mdl, "USE_NW2_TRACERS", CS%use_nw2_tracers, &
                  "If true, use the NeverWorld2 tracers.", &
                  default=.false.)
+  call get_param(param_file, mdl, "USE_PDE_TRACER", CS%use_pde_tracer, &
+       "If true, use the PDE-based Lagrangian filtering tracer.", &
+       default=.false.)
 
 !    Add other user-provided calls to register tracers for restarting here. Each
 !  tracer package registration call returns a logical false if it cannot be run
@@ -287,7 +297,21 @@ subroutine call_tracer_register(G, GV, US, param_file, CS, tr_Reg, restart_CS)
   if (CS%use_nw2_tracers) CS%use_nw2_tracers = &
     register_nw2_tracers(G%HI, GV, US, param_file, CS%nw2_tracers_CSp, tr_Reg, restart_CS)
 
+  if (CS%use_pde_tracer) CS%use_pde_tracer = &
+       register_pde_tracer(G%HI, GV, param_file, CS%pde_tracer_CSp, tr_Reg, restart_CS)
+
 end subroutine call_tracer_register
+
+subroutine tracer_register_state_pointers(CS, u, v)
+  type(tracer_flow_control_CS), pointer :: CS
+  real, dimension(:,:,:), target :: u, v
+
+  if (.not. associated(CS)) call MOM_error(FATAL, "tracer_register_state_pointers:" // &
+       "Module must be initialized via call_tracer_register before it is used.")
+
+  if (CS%use_pde_tracer) call register_pde_state_pointers(CS%pde_tracer_CSp, u, v)
+
+end subroutine tracer_register_state_pointers
 
 !> This subroutine calls all registered tracer initialization
 !! subroutines.
@@ -369,6 +393,9 @@ subroutine tracer_flow_control_init(restart, day, G, GV, US, h, param_file, diag
     call initialize_dyed_obc_tracer(restart, day, G, GV, h, diag, OBC, CS%dyed_obc_tracer_CSp)
   if (CS%use_nw2_tracers) &
     call initialize_nw2_tracers(restart, day, G, GV, US, h, tv, diag, CS%nw2_tracers_CSp)
+
+  if (CS%use_pde_tracer) &
+       call initialize_pde_tracer(restart, day, G, GV, h, diag, CS%pde_tracer_CSp)
 
 end subroutine tracer_flow_control_init
 
@@ -594,6 +621,10 @@ subroutine call_tracer_column_fns(h_old, h_new, ea, eb, fluxes, mld, dt, G, GV, 
                                      G, GV, US, tv, CS%nw2_tracers_CSp, &
                                      evap_CFL_limit=evap_CFL_limit, &
                                      minimum_forcing_depth=minimum_forcing_depth)
+    if (CS%use_pde_tracer) &
+         call pde_tracer_column_physics(h_old, h_new, ea, eb, fluxes, dt, &
+         G, GV, US, CS%pde_tracer_CSp, &
+         evap_CFL_limit=evap_CFL_limit, minimum_forcing_depth=minimum_forcing_depth)
   else ! Apply tracer surface fluxes using ea on the first layer
     if (CS%use_USER_tracer_example) &
       call tracer_column_physics(h_old, h_new, ea, eb, fluxes, dt, &
@@ -660,6 +691,9 @@ subroutine call_tracer_column_fns(h_old, h_new, ea, eb, fluxes, mld, dt, G, GV, 
                                       G, GV, US, CS%dyed_obc_tracer_CSp)
     if (CS%use_nw2_tracers) call nw2_tracer_column_physics(h_old, h_new, ea, eb, fluxes, dt, &
                                                            G, GV, US, tv, CS%nw2_tracers_CSp)
+    if (CS%use_pde_tracer) &
+         call pde_tracer_column_physics(h_old, h_new, ea, eb, fluxes, dt, &
+         G, GV, US, CS%pde_tracer_CSp)
   endif
 
 end subroutine call_tracer_column_fns
