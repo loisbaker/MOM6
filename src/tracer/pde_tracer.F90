@@ -200,11 +200,12 @@ subroutine pde_tracer_column_physics(h_old, h_new, ea, eb, fluxes, dt, G, GV, US
     CS%tr(:,:,:,:) = 0.
   end if
 
-  do k = 1,nz ; do j = js,je ; do i = is,ie
-    ! XXX does this only happen at the midpoint of the window?
-    CS%tr(i,j,k,1) = CS%tr(i,j,k,1) - filter_impulse(CS%filter_degree, CS%filter_cutoff, CS%position) * (CS%u_ptr(I-1,j,k) + CS%u_ptr(I,j,k)) / 2
-    CS%tr(i,j,k,2) = CS%tr(i,j,k,2) - filter_impulse(CS%filter_degree, CS%filter_cutoff, CS%position) * (CS%v_ptr(i,J-1,k) + CS%v_ptr(i,J,k)) / 2
-  enddo ; enddo ; enddo
+  if (CS%position == CS%window / 2) then
+    do k = 1,nz ; do j = js,je ; do i = is,ie
+      CS%tr(i,j,k,1) = CS%tr(i,j,k,1) - filter_impulse(CS%filter_degree, CS%filter_cutoff, CS%position) * (CS%u_ptr(I-1,j,k) + CS%u_ptr(I,j,k)) / 2
+      CS%tr(i,j,k,2) = CS%tr(i,j,k,2) - filter_impulse(CS%filter_degree, CS%filter_cutoff, CS%position) * (CS%v_ptr(i,J-1,k) + CS%v_ptr(i,J,k)) / 2
+    enddo; enddo ; enddo
+  endif
 end subroutine pde_tracer_column_physics
 
 subroutine pde_tracer_end(CS)
