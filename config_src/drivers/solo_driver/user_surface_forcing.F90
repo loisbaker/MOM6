@@ -64,8 +64,6 @@ subroutine USER_wind_forcing(sfc_state, forces, day, G, US, CS)
 
   !   When modifying the code, comment out this error message.  It is here
   ! so that the original (unmodified) version is not accidentally used.
-  call MOM_error(FATAL, "User_wind_surface_forcing: " // &
-     "User forcing routine called without modification." )
 
   is = G%isc ; ie = G%iec ; js = G%jsc ; je = G%jec
   Isq = G%IscB ; Ieq = G%IecB ; Jsq = G%JscB ; Jeq = G%JecB
@@ -80,7 +78,7 @@ subroutine USER_wind_forcing(sfc_state, forces, day, G, US, CS)
   ! calculation of ustar - otherwise the lower bound would be Isq.
   do j=js,je ; do I=is-1,Ieq
     ! Change this to the desired expression.
-    forces%taux(I,j) = G%mask2dCu(I,j) * 0.0*US%Pa_to_RLZ_T2
+    forces%taux(I,j) = G%mask2dCu(I,j) * 0.1*US%Pa_to_RLZ_T2
   enddo ; enddo
   do J=js-1,Jeq ; do i=is,ie
     forces%tauy(i,J) = G%mask2dCv(i,J) * 0.0  ! Change this to the desired expression.

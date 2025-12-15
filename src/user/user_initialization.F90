@@ -66,11 +66,19 @@ subroutine USER_initialize_topography(D, G, param_file, max_depth, US)
   real,                            intent(in)  :: max_depth !< Maximum model depth [Z ~> m]
   type(unit_scale_type),           intent(in)  :: US !< A dimensional unit scaling type
 
-  call MOM_error(FATAL, &
-    "USER_initialization.F90, USER_initialize_topography: " // &
-    "Unmodified user routine called - you must edit the routine to use it")
+  real :: pi
+  integer :: i, j, is, ie, js, je
+  real, parameter :: bump_height = 50 / 2
+  is = G%isc ; ie = G%iec ; js = G%jsc ; je = G%jec
+  pi = 4.0 * atan(1.0)
 
-  D(:,:) = 0.0
+  do j=js,je ; do i = is,ie
+    !D(i,j) = max_depth - (100 * sin(pi * G%geoLonT(i,j) / 5) + 100)
+    ! D(i,j) = max_depth
+    ! if (G%geoLonT(i,j) < 50) then
+      D(i,j) = max_depth - (bump_height * sin(pi * G%geoLonT(i,j) / 5) + bump_height)
+    ! end if
+  enddo; enddo
 
   if (first_call) call write_user_log(param_file)
 
@@ -113,14 +121,16 @@ subroutine USER_initialize_velocity(u, v, G, GV, US, param_file, just_read)
   logical,                                     intent(in)  :: just_read !< If true, this call will
                                                       !! only read parameters without changing u & v.
 
-  call MOM_error(FATAL, &
-    "USER_initialization.F90, USER_initialize_velocity: " // &
-    "Unmodified user routine called - you must edit the routine to use it")
+  integer :: i, j, is, ie, js, je
+  is = G%iscB ; ie = G%iecB ; js = G%jsc ; je = G%jec
 
   if (just_read) return ! All run-time parameters have been read, so return.
 
-  u(:,:,1) = 0.0
-  v(:,:,1) = 0.0
+  do j=js,je ; do I=is,ie
+    u(I,j,:) = 0.1 * exp(-((G%geoLatCu(I,j) - 5) / 2) ** 2)
+  enddo; enddo
+
+  v(:,:,:) = 0.0
 
   if (first_call) call write_user_log(param_file)
 
@@ -168,11 +178,31 @@ subroutine USER_initialize_sponges(G, GV, use_temp, tv, param_file, CSp, h)
   type(sponge_CS),         pointer    :: CSp           !< A pointer to the sponge control structure.
   real, dimension(SZI_(G),SZJ_(G),SZK_(GV)), &
                            intent(in) :: h             !< Layer thicknesses [H ~> m or kg m-2].
-  call MOM_error(FATAL, &
-    "USER_initialization.F90, USER_initialize_sponges: " // &
-    "Unmodified user routine called - you must edit the routine to use it")
+
+  real :: Idamp(SZI_(G),SZJ_(G)), eta(SZI_(G),SZJ_(G),SZK_(GV)+1)
+  real :: pi
+  integer :: mid
+  integer, parameter :: sponge_width = 5
+
+  pi = 4.0 * atan(1.0)
+  mid = size(eta, 1) / 2
 
   if (first_call) call write_user_log(param_file)
+
+  Idamp(:,:) = 0.0
+  Idamp(G%isc:G%isc + sponge_width,:) = 1.0 / 3600.0
+  Idamp(G%iec - sponge_width:G%iec,:) = 1.0 / 3600.0
+
+  ! 2km jet of 0.1m/s
+  eta(1:mid,:,1) = -1e-4 * 0.1 * 2 * sqrt(pi) / (2 * 9.81) * erf((G%geoLatT - 5) / 2)
+  eta(1:mid,:,2) = -G%max_depth / 2 - 1e-4 * 0.1 * 2 * sqrt(pi) / (2 * 9.81) * erf((G%geoLatT - 5) / 2)
+
+  ! outflow
+  eta(mid:size(eta, 1),:,1) = 0
+  eta(mid:size(eta, 1),:,2) = -G%max_depth / 2
+  eta(:,:,3) = -G%max_depth
+
+  call initialize_sponge(Idamp, eta, G, param_file, CSp, GV)
 
 end subroutine USER_initialize_sponges
 
