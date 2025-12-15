@@ -170,22 +170,6 @@ subroutine pde_tracer_column_physics(h_old, h_new, ea, eb, fluxes, dt, G, GV, US
 
   if (.not. (associated(CS%u_ptr) .and. associated(CS%v_ptr))) call MOM_error(FATAL, "velocity pointers must be associated")
 
-  if (present(evap_CFL_limit) .and. present(minimum_forcing_depth)) then
-    do m = 1, CS%ntr
-      do k = 1,nz ; do j = js,je ; do i = is,ie
-        h_work(i,j,k) = h_old(i,j,k)
-      enddo ; enddo ; enddo
-
-      call applyTracerBoundaryFluxesInOut(G, GV, CS%tr(:,:,:,m), dt, fluxes, h_work, &
-           evap_CFL_limit, minimum_forcing_depth)
-      call tracer_vertdiff(h_work, ea, eb, dt, CS%tr(:,:,:,m), G, GV)
-    end do
-  else
-    do m = 1, CS%ntr
-      call tracer_vertdiff(h_old, ea, eb, dt, CS%tr(:,:,:,m), G, GV)
-    end do
-  end if
-
   print *, "pde_tracer_column_physics, dt:", dt, ", position:", CS%position
 
   ! XXX check that dt divides CS%window evenly
