@@ -147,7 +147,8 @@ function filter_impulse(degree, cutoff, t)
     an = cn / degree
     bn = dn / degree
 
-    filter_impulse = filter_impulse + exp(-cn * t) * (an * cos(dn * t) + bn * sin(dn * t))
+    filter_impulse = filter_impulse &
+      + exp(-cn * abs(t)) * (an * cos(dn * abs(t)) + bn * sin(dn * abs(t)))
   end do
 end function filter_impulse
 
@@ -163,6 +164,7 @@ subroutine pde_tracer_column_physics(h_old, h_new, ea, eb, fluxes, dt, G, GV, US
 
   integer :: i, j, k, is, ie, js, je, nz, m
   real, dimension(SZI_(G),SZJ_(G),SZK_(GV)) :: h_work
+  real :: u_on_h, v_on_h, impulse, midpoint_mask
 
   is = G%isc ; ie = G%iec ; js = G%jsc ; je = G%jec ; nz = GV%ke
 
@@ -184,12 +186,25 @@ subroutine pde_tracer_column_physics(h_old, h_new, ea, eb, fluxes, dt, G, GV, US
     CS%tr(:,:,:,:) = 0.
   end if
 
+  ! in the middle of the window, also force by the actual velocity
   if (CS%position == CS%window / 2) then
-    do k = 1,nz ; do j = js,je ; do i = is,ie
-      CS%tr(i,j,k,1) = CS%tr(i,j,k,1) - filter_impulse(CS%filter_degree, CS%filter_cutoff, CS%position) * (CS%u_ptr(I-1,j,k) + CS%u_ptr(I,j,k)) / 2
-      CS%tr(i,j,k,2) = CS%tr(i,j,k,2) - filter_impulse(CS%filter_degree, CS%filter_cutoff, CS%position) * (CS%v_ptr(i,J-1,k) + CS%v_ptr(i,J,k)) / 2
-    enddo; enddo ; enddo
-  endif
+    midpoint_mask = 1.0
+  else
+    midpoint_mask = 0.0
+  end if
+
+  ! every timestep, add the impulse response
+  do k = 1,nz ; do j = js,je ; do i = is,ie
+    ! interpolations onto tracer point
+    u_on_h = (CS%u_ptr(I-1,j,k) + CS%u_ptr(I,j,k)) / 2
+    v_on_h = (CS%v_ptr(i,J-1,k) + CS%v_ptr(i,J,k)) / 2
+
+    ! impulse response at this point in the window
+    impulse = filter_impulse(CS%filter_degree, CS%filter_cutoff, CS%position - CS%window / 2)
+
+    CS%tr(i,j,k,1) = CS%tr(i,j,k,1) - impulse * u_on_h + midpoint_mask * u_on_h
+    CS%tr(i,j,k,2) = CS%tr(i,j,k,2) - impulse * v_on_h + midpoint_mask * v_on_h
+  enddo; enddo ; enddo
 end subroutine pde_tracer_column_physics
 
 subroutine pde_tracer_end(CS)
