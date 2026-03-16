@@ -38,7 +38,7 @@ type, public :: pde_tracer_CS ; private
    type(diag_ctrl), pointer :: diag => NULL()
    type(MOM_restart_CS), pointer :: restart_CSp => NULL()
 
-   integer :: id_tr_u, id_tr_v
+   integer :: id_tr_u_filt, id_tr_v_filt, id_tr_u_map, id_tr_v_map
 end type pde_tracer_CS
 
 contains
@@ -54,7 +54,7 @@ function register_pde_tracer(HI, GV, param_file, CS, tr_Reg, restart_CS)
   logical :: register_pde_tracer
 #include "version_variable.h"
   character(len=40) :: mdl = "pde_tracer"
-  character(len=8) :: var_name
+  character(len=13) :: var_name
   type(vardesc) :: tr_desc
   real, pointer :: tr_ptr(:,:,:) => NULL()
 
@@ -82,12 +82,12 @@ function register_pde_tracer(HI, GV, param_file, CS, tr_Reg, restart_CS)
        "The cutoff angular frequency (in [rad s-1]) of the Butterworth filter.", &
        default=5e-5, units="rad s-1")
 
-  CS%ntr = 2 ! u, v velocity components
+  CS%ntr = 4 ! u, v filtered velocities and maps
   allocate(CS%tr(isd:ied,jsd:jed,nz,CS%ntr))
 
   do m = 1, CS%ntr
-    write(var_name(1:8), '(a6,i2.2)') 'pdemap', m
-    tr_desc = var_desc(var_name, "1", "PDE Map", caller=mdl)
+    write(var_name(1:13), '(a6,i2.2)') 'tracer_filt', m
+    tr_desc = var_desc(var_name, "1", "Filtered tracer", caller=mdl)
     tr_ptr => CS%tr(:,:,:,m)
 
     call register_tracer(tr_ptr, tr_Reg, param_file, HI, GV, tr_desc=tr_desc, &
@@ -125,21 +125,26 @@ subroutine initialize_pde_tracer(restart, day, G, GV, h, diag, CS)
   CS%tr(:,:,:,:) = 0.
   CS%diag => diag
 
-  CS%id_tr_u = register_diag_field("ocean_model", "pdemap_u", diag%axesTL, &
-       day, "PDE map for u", "m s-1")
-  CS%id_tr_v = register_diag_field("ocean_model", "pdemap_v", diag%axesTL, &
-       day, "PDE map for v", "m s-1")
+  CS%id_tr_u_filt = register_diag_field("ocean_model", "u_filt", diag%axesTL, &
+       day, "Filtered u", "m s-1")
+  CS%id_tr_v_filt = register_diag_field("ocean_model", "v_filt", diag%axesTL, &
+       day, "Filtered v", "m s-1")
+  CS%id_tr_u_map = register_diag_field("ocean_model", "u_map", diag%axesTL, &
+       day, "Map for u", "m")
+  CS%id_tr_v_map = register_diag_field("ocean_model", "v_map", diag%axesTL, &
+       day, "Map for v", "m")
 end subroutine initialize_pde_tracer
 
-function filter_impulse(degree, cutoff, t)
-  integer, intent(in) :: degree, t
+function filter_impulse_response(degree, cutoff, window, t)
+  integer, intent(in) :: degree, window, t
   real, intent(in) :: cutoff
-  real :: filter_impulse, an, bn, cn, dn
+  real :: filter_impulse_response, an, bn, cn, dn, norm_correction
   integer :: n
 
   real, parameter :: pi = 4.0 * atan(1.0)
 
-  filter_impulse = 0.
+  filter_impulse_response = 0.
+  norm_correction = 0.
 
   do n = 1, degree / 2
     cn = cutoff * sin(pi / (2 * degree) * (2*n - 1))
@@ -147,10 +152,49 @@ function filter_impulse(degree, cutoff, t)
     an = cn / degree
     bn = dn / degree
 
-    filter_impulse = filter_impulse &
+    filter_impulse_response = filter_impulse_response &
       + exp(-cn * abs(t)) * (an * cos(dn * abs(t)) + bn * sin(dn * abs(t)))
+
+    norm_correction = norm_correction + 2 * exp( -cn * window / 2) * (( an * cn + bn * dn)/( cn**2 + dn**2) * cos(dn * window / 2) + ( bn * cn - an * dn )/( cn**2 + dn**2) * sin(dn * window / 2))
   end do
-end function filter_impulse
+  filter_impulse_response = filter_impulse_response / (1.0 - norm_correction)
+end function filter_impulse_response
+
+function filter_integrated_impulse_response(degree, cutoff, window, t)
+  integer, intent(in) :: degree, window, t
+  real, intent(in) :: cutoff
+  real :: filter_impulse_response, an, bn, cn, dn, norm_correction
+  integer :: n
+
+  real, parameter :: pi = 4.0 * atan(1.0)
+
+  filter_impulse_response = 0.
+  norm_correction = 0.
+
+  do n = 1, degree / 2
+    cn = cutoff * sin(pi / (2 * degree) * (2*n - 1))
+    dn = cutoff * cos(pi / (2 * degree) * (2*n - 1))
+    an = cn / degree
+    bn = dn / degree
+
+    filter_impulse_response = filter_impulse_response &
+      + exp(-cn * abs(t)) * (an * cos(dn * abs(t)) + bn * sin(dn * abs(t)))
+
+    norm_correction = norm_correction + 2 * exp( -cn * window / 2) * (( an * cn + bn * dn)/( cn**2 + dn**2) * cos(dn * window / 2) + ( bn * cn - an * dn )/( cn**2 + dn**2) * sin(dn * window / 2))
+  end do
+  filter_impulse_response = filter_impulse_response / (1.0 - norm_correction)
+end function filter_integrated_impulse_response
+
+function heaviside(t)
+  integer, intent(in) :: t
+  real :: heaviside
+
+  if (t >= 0) then
+    heaviside = 1.0
+  else
+    heaviside = 0.0
+  end if
+end function heaviside
 
 subroutine pde_tracer_column_physics(h_old, h_new, ea, eb, fluxes, dt, G, GV, US, CS, evap_CFL_limit, minimum_forcing_depth)
   type(ocean_grid_type), intent(in) :: G
@@ -164,7 +208,7 @@ subroutine pde_tracer_column_physics(h_old, h_new, ea, eb, fluxes, dt, G, GV, US
 
   integer :: i, j, k, is, ie, js, je, nz, m
   real, dimension(SZI_(G),SZJ_(G),SZK_(GV)) :: h_work
-  real :: u_on_h, v_on_h, impulse, midpoint_mask
+  real :: u_on_h, v_on_h, impulse_response, midpoint_mask, heaviside_factor
 
   is = G%isc ; ie = G%iec ; js = G%jsc ; je = G%jec ; nz = GV%ke
 
@@ -176,19 +220,30 @@ subroutine pde_tracer_column_physics(h_old, h_new, ea, eb, fluxes, dt, G, GV, US
 
   ! XXX check that dt divides CS%window evenly
   CS%position = CS%position + dt
-  if (CS%position == CS%window) then
+  !if (CS%position == CS%window) then
+  if (abs(CS%position - CS%window) < 0.5 * dt) then
     CS%position = 0
+    print *, "At window endpoint, resetting filter tracers"
 
-    ! reset and post data
-    if (CS%id_tr_u > 0) call post_data(CS%id_tr_u, CS%tr(:,:,:,1), CS%diag)
-    if (CS%id_tr_v > 0) call post_data(CS%id_tr_v, CS%tr(:,:,:,2), CS%diag)
+    ! reset and post data (temporarily move this outside of the if statement so we can see fields at all timesteps)
+     if (CS%id_tr_u_filt > 0) call post_data(CS%id_tr_u_filt, CS%tr(:,:,:,1), CS%diag)
+     if (CS%id_tr_v_filt > 0) call post_data(CS%id_tr_v_filt, CS%tr(:,:,:,2), CS%diag)
+     if (CS%id_tr_u_map > 0) call post_data(CS%id_tr_u_map, CS%tr(:,:,:,3), CS%diag)
+     if (CS%id_tr_v_map > 0) call post_data(CS%id_tr_v_map, CS%tr(:,:,:,4), CS%diag)
 
     CS%tr(:,:,:,:) = 0.
   end if
-
-  ! in the middle of the window, also force by the actual velocity
-  if (CS%position == CS%window / 2) then
+  
+  ! If we want to output these fields every timestep, we do that here
+  ! if (CS%id_tr_u_filt > 0) call post_data(CS%id_tr_u_filt, CS%tr(:,:,:,1), CS%diag)
+  ! if (CS%id_tr_v_filt > 0) call post_data(CS%id_tr_v_filt, CS%tr(:,:,:,2), CS%diag)
+  ! if (CS%id_tr_u_map > 0) call post_data(CS%id_tr_u_map, CS%tr(:,:,:,3), CS%diag)
+  ! if (CS%id_tr_v_map > 0) call post_data(CS%id_tr_v_map, CS%tr(:,:,:,4), CS%diag)
+  
+  ! Check if we are within the "midpoint" timestep
+  if (abs(CS%position - (real(CS%window) / 2.0)) < (0.5 * dt)) then
     midpoint_mask = 1.0
+    print *, "midpoint mask is 1, position:", CS%position
   else
     midpoint_mask = 0.0
   end if
@@ -199,11 +254,15 @@ subroutine pde_tracer_column_physics(h_old, h_new, ea, eb, fluxes, dt, G, GV, US
     u_on_h = (CS%u_ptr(I-1,j,k) + CS%u_ptr(I,j,k)) / 2
     v_on_h = (CS%v_ptr(i,J-1,k) + CS%v_ptr(i,J,k)) / 2
 
-    ! impulse response at this point in the window
-    impulse = filter_impulse(CS%filter_degree, CS%filter_cutoff, CS%position - CS%window / 2)
+    ! impulse response at this point in the window (might want to centre this on the timestep)
+    impulse_response = filter_impulse_response(CS%filter_degree, CS%filter_cutoff, CS%window, CS%window / 2 - CS%position)
+    heaviside_factor = heaviside(CS%position - CS%window / 2)
 
-    CS%tr(i,j,k,1) = CS%tr(i,j,k,1) - impulse * u_on_h + midpoint_mask * u_on_h
-    CS%tr(i,j,k,2) = CS%tr(i,j,k,2) - impulse * v_on_h + midpoint_mask * v_on_h
+    ! Start with just the low pass (i.e. don't hit with the full velocity at the midpoint)
+    CS%tr(i,j,k,1) = CS%tr(i,j,k,1) - dt * impulse_response * u_on_h + midpoint_mask * u_on_h
+    CS%tr(i,j,k,2) = CS%tr(i,j,k,2) - dt * impulse_response * v_on_h + midpoint_mask * v_on_h
+    CS%tr(i,j,k,3) = CS%tr(i,j,k,3) - dt * heaviside_factor * u_on_h
+    CS%tr(i,j,k,4) = CS%tr(i,j,k,4) - dt * heaviside_factor * v_on_h
   enddo; enddo ; enddo
 end subroutine pde_tracer_column_physics
 
