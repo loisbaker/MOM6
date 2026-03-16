@@ -278,6 +278,7 @@ target_sources(mom6shared PRIVATE
   tracer/MOM_tracer_Z_init.F90
   tracer/nw2_tracers.F90
   tracer/oil_tracer.F90
+  tracer/pde_tracer.F90
   tracer/pseudo_salt_tracer.F90
   tracer/RGC_tracer.F90
   tracer/tracer_example.F90
