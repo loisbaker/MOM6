@@ -178,16 +178,19 @@ function filter_integrated_impulse_response(degree, cutoff, window, t)
     an = cn / degree
     bn = dn / degree
 
+    factor1 = (an * cn + bn * dn)/( cn**2 + dn**2)
+    factor2 = ( bn * cn - an * dn )/( cn**2 + dn**2)
+
     if (t <= 0) then
       filter_integrated_impulse_response = filter_integrated_impulse_response &
-        + ( an * cn + bn * dn)/( cn**2 + dn**2) * (exp(cn * t) * cos(dn * t) - exp(-cn * window / 2) * cos(dn * window / 2)) &
-        + ( bn * cn - an * dn )/( cn**2 + dn**2) * (- exp(cn * t) * sin(dn * t) - exp(-cn * window / 2) * sin(dn * window / 2))
+        + factor1 * (exp(cn * t) * cos(dn * t) - exp(-cn * window / 2) * cos(dn * window / 2)) &
+        + factor2 * (- exp(cn * t) * sin(dn * t) - exp(-cn * window / 2) * sin(dn * window / 2))
     else
       filter_integrated_impulse_response = filter_integrated_impulse_response &
-        - 2 * exp( -cn * t) * (( an * cn + bn * dn)/( cn**2 + dn**2) * cos(dn * t) + ( bn * cn - an * dn )/( cn**2 + dn**2) * sin(dn * t))
+        - 2 * exp( -cn * t) * (factor1 * cos(dn * t) + factor2 * sin(dn * t))
     end if
 
-    norm_correction = norm_correction + 2 * exp( -cn * window / 2) * (( an * cn + bn * dn)/( cn**2 + dn**2) * cos(dn * window / 2) + ( bn * cn - an * dn )/( cn**2 + dn**2) * sin(dn * window / 2))
+    norm_correction = norm_correction + 2 * exp( -cn * window / 2) * (factor1 * cos(dn * window / 2) + factor2 * sin(dn * window / 2))
   end do
 
   if (t <= 0) then
@@ -270,8 +273,8 @@ subroutine pde_tracer_column_physics(h_old, h_new, ea, eb, fluxes, dt, G, GV, US
 
     ! impulse response at this point in the window (might want to centre this on the timestep)
     impulse_response = filter_impulse_response(CS%filter_degree, CS%filter_cutoff, CS%window, CS%window / 2 - CS%position)
-    !heaviside_factor = heaviside(CS%position - CS%window / 2)
-    integrated_impulse_response = filter_integrated_impulse_response(CS%filter_degree, CS%filter_cutoff, CS%window, -CS%window / 2 + CS%position)
+    heaviside_factor = heaviside(CS%position - CS%window / 2)
+    !integrated_impulse_response = filter_integrated_impulse_response(CS%filter_degree, CS%filter_cutoff, CS%window, -CS%window / 2 + CS%position)
 
     ! Start with just the low pass (i.e. don't hit with the full velocity at the midpoint)
     CS%tr(i,j,k,1) = CS%tr(i,j,k,1) - dt * impulse_response * u_on_h + midpoint_mask * u_on_h ! This definition finds the wave component
