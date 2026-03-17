@@ -9,6 +9,7 @@ use MOM_hor_index, only : hor_index_type
 use MOM_io, only : vardesc, var_desc
 use MOM_restart, only : MOM_restart_CS
 use MOM_time_manager, only : time_type
+use MOM_tracer_advect_schemes, only : ADVECT_NONE
 use MOM_tracer_diabatic, only : tracer_vertdiff, applyTracerBoundaryFluxesInOut
 use MOM_tracer_registry, only : register_tracer, tracer_registry_type
 use MOM_unit_scaling, only : unit_scale_type
@@ -59,7 +60,8 @@ function register_pde_tracer(HI, GV, param_file, CS, tr_Reg, restart_CS)
   real, pointer :: tr_ptr(:,:,:) => NULL()
 
   integer :: isd, ied, jsd, jed, nz
-  integer :: m
+  integer :: m, advect_scheme
+  logical :: skip_advect
 
   isd = HI%isd ; ied = HI%ied ; jsd = HI%jsd ; jed = HI%jed ; nz = GV%ke
 
@@ -81,9 +83,16 @@ function register_pde_tracer(HI, GV, param_file, CS, tr_Reg, restart_CS)
   call get_param(param_file, mdl, "PDE_TRACER_FILTER_CUTOFF", CS%filter_cutoff, &
        "The cutoff angular frequency (in [rad s-1]) of the Butterworth filter.", &
        default=5e-5, units="rad s-1")
+  
+  call get_param(param_file, mdl, "PDE_TRACER_SKIP_ADVECTION", skip_advect, &
++       "If true, use the PDE tracer in the Eulerian sense, without advection.", &
++       default=.false.)
 
   CS%ntr = 4 ! u, v filtered velocities and maps
   allocate(CS%tr(isd:ied,jsd:jed,nz,CS%ntr))
+
+  advect_scheme = -1
+  if (skip_advect) advect_scheme = ADVECT_NONE
 
   do m = 1, CS%ntr
     write(var_name(1:13), '(a6,i2.2)') 'tracer_filt', m
@@ -91,7 +100,8 @@ function register_pde_tracer(HI, GV, param_file, CS, tr_Reg, restart_CS)
     tr_ptr => CS%tr(:,:,:,m)
 
     call register_tracer(tr_ptr, tr_Reg, param_file, HI, GV, tr_desc=tr_desc, &
-         registry_diags=.false., restart_CS=restart_CS, mandatory=.false.)
+         registry_diags=.false., restart_CS=restart_CS, mandatory=.false., &
+         advect_scheme=advect_scheme)
   end do
 
   CS%tr_Reg => tr_Reg
