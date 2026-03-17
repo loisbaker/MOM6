@@ -187,7 +187,7 @@ function filter_integrated_impulse_response(degree, cutoff, window, t)
         + factor2 * (- exp(cn * t) * sin(dn * t) - exp(-cn * window / 2) * sin(dn * window / 2))
     else
       filter_integrated_impulse_response = filter_integrated_impulse_response &
-        - 2 * exp( -cn * t) * (factor1 * cos(dn * t) + factor2 * sin(dn * t))
+        + 2 * exp( -cn * t) * (factor1 * cos(dn * t) + factor2 * sin(dn * t))
     end if
 
     norm_correction = norm_correction + 2 * exp( -cn * window / 2) * (factor1 * cos(dn * window / 2) + factor2 * sin(dn * window / 2))
