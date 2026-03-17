@@ -274,12 +274,17 @@ subroutine pde_tracer_column_physics(h_old, h_new, ea, eb, fluxes, dt, G, GV, US
     ! impulse response at this point in the window (might want to centre this on the timestep)
     impulse_response = filter_impulse_response(CS%filter_degree, CS%filter_cutoff, CS%window, CS%window / 2 - CS%position)
     heaviside_factor = heaviside(CS%position - CS%window / 2)
+    !integrated_impulse_response = filter_integrated_impulse_response(CS%filter_degree, CS%filter_cutoff, CS%window, -CS%window / 2 + CS%position)
 
     ! Start with just the low pass (i.e. don't hit with the full velocity at the midpoint)
-    CS%tr(i,j,k,1) = CS%tr(i,j,k,1) - dt * impulse_response * u_on_h + midpoint_mask * u_on_h
-    CS%tr(i,j,k,2) = CS%tr(i,j,k,2) - dt * impulse_response * v_on_h + midpoint_mask * v_on_h
-    CS%tr(i,j,k,3) = CS%tr(i,j,k,3) - dt * heaviside_factor * u_on_h
-    CS%tr(i,j,k,4) = CS%tr(i,j,k,4) - dt * heaviside_factor * v_on_h
+    CS%tr(i,j,k,1) = CS%tr(i,j,k,1) - dt * impulse_response * u_on_h + midpoint_mask * u_on_h ! This definition finds the wave component
+    CS%tr(i,j,k,2) = CS%tr(i,j,k,2) - dt * impulse_response * v_on_h + midpoint_mask * v_on_h ! This definition finds the wave component
+    ! CS%tr(i,j,k,1) = CS%tr(i,j,k,1) + dt * impulse_response * u_on_h ! This definition finds the mean component
+    ! CS%tr(i,j,k,2) = CS%tr(i,j,k,2) + dt * impulse_response * v_on_h ! This definition finds the mean component
+    CS%tr(i,j,k,3) = CS%tr(i,j,k,3) - dt * heaviside_factor * u_on_h ! These maps remap to midpoint position
+    CS%tr(i,j,k,4) = CS%tr(i,j,k,4) - dt * heaviside_factor * v_on_h ! These maps remap to midpoint position
+    ! CS%tr(i,j,k,3) = CS%tr(i,j,k,3) - dt * integrated_impulse_response * u_on_h ! These maps remap to mean position
+    ! CS%tr(i,j,k,4) = CS%tr(i,j,k,4) - dt * integrated_impulse_response * v_on_h ! These maps remap to mean position
   enddo; enddo ; enddo
 end subroutine pde_tracer_column_physics
 
