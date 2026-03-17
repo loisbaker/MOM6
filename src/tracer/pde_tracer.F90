@@ -164,7 +164,7 @@ function filter_integrated_impulse_response(degree, cutoff, window, t)
   ! Finds the integral from -window/2 to t of the impulse response
   integer, intent(in) :: degree, window, t
   real, intent(in) :: cutoff
-  real :: filter_integrated_impulse_response, an, bn, cn, dn, norm_correction
+  real :: filter_integrated_impulse_response, an, bn, cn, dn, norm_correction, factor1, factor2
   integer :: n
 
   real, parameter :: pi = 4.0 * atan(1.0)
@@ -187,7 +187,7 @@ function filter_integrated_impulse_response(degree, cutoff, window, t)
         + factor2 * (- exp(cn * t) * sin(dn * t) - exp(-cn * window / 2) * sin(dn * window / 2))
     else
       filter_integrated_impulse_response = filter_integrated_impulse_response &
-        - 2 * exp( -cn * t) * (factor1 * cos(dn * t) + factor2 * sin(dn * t))
+        + 2 * exp( -cn * t) * (factor1 * cos(dn * t) + factor2 * sin(dn * t))
     end if
 
     norm_correction = norm_correction + 2 * exp( -cn * window / 2) * (factor1 * cos(dn * window / 2) + factor2 * sin(dn * window / 2))
@@ -235,9 +235,8 @@ subroutine pde_tracer_column_physics(h_old, h_new, ea, eb, fluxes, dt, G, GV, US
 
   print *, "pde_tracer_column_physics, dt:", dt, ", position:", CS%position
 
-  ! XXX check that dt divides CS%window evenly
   CS%position = CS%position + dt
-  !if (CS%position == CS%window) then
+  
   if (abs(CS%position - CS%window) < 0.5 * dt) then
     CS%position = 0
     print *, "At window endpoint, resetting filter tracers"
@@ -273,18 +272,18 @@ subroutine pde_tracer_column_physics(h_old, h_new, ea, eb, fluxes, dt, G, GV, US
 
     ! impulse response at this point in the window (might want to centre this on the timestep)
     impulse_response = filter_impulse_response(CS%filter_degree, CS%filter_cutoff, CS%window, CS%window / 2 - CS%position)
-    heaviside_factor = heaviside(CS%position - CS%window / 2)
-    !integrated_impulse_response = filter_integrated_impulse_response(CS%filter_degree, CS%filter_cutoff, CS%window, -CS%window / 2 + CS%position)
+    !heaviside_factor = heaviside(CS%position - CS%window / 2)
+    integrated_impulse_response = filter_integrated_impulse_response(CS%filter_degree, CS%filter_cutoff, CS%window, -CS%window / 2 + CS%position)
 
     ! Start with just the low pass (i.e. don't hit with the full velocity at the midpoint)
-    CS%tr(i,j,k,1) = CS%tr(i,j,k,1) - dt * impulse_response * u_on_h + midpoint_mask * u_on_h ! This definition finds the wave component
-    CS%tr(i,j,k,2) = CS%tr(i,j,k,2) - dt * impulse_response * v_on_h + midpoint_mask * v_on_h ! This definition finds the wave component
-    ! CS%tr(i,j,k,1) = CS%tr(i,j,k,1) + dt * impulse_response * u_on_h ! This definition finds the mean component
-    ! CS%tr(i,j,k,2) = CS%tr(i,j,k,2) + dt * impulse_response * v_on_h ! This definition finds the mean component
-    CS%tr(i,j,k,3) = CS%tr(i,j,k,3) - dt * heaviside_factor * u_on_h ! These maps remap to midpoint position
-    CS%tr(i,j,k,4) = CS%tr(i,j,k,4) - dt * heaviside_factor * v_on_h ! These maps remap to midpoint position
-    ! CS%tr(i,j,k,3) = CS%tr(i,j,k,3) - dt * integrated_impulse_response * u_on_h ! These maps remap to mean position
-    ! CS%tr(i,j,k,4) = CS%tr(i,j,k,4) - dt * integrated_impulse_response * v_on_h ! These maps remap to mean position
+    ! CS%tr(i,j,k,1) = CS%tr(i,j,k,1) - dt * impulse_response * u_on_h + midpoint_mask * u_on_h ! This definition finds the wave component
+    ! CS%tr(i,j,k,2) = CS%tr(i,j,k,2) - dt * impulse_response * v_on_h + midpoint_mask * v_on_h ! This definition finds the wave component
+    CS%tr(i,j,k,1) = CS%tr(i,j,k,1) + dt * impulse_response * u_on_h ! This definition finds the mean component
+    CS%tr(i,j,k,2) = CS%tr(i,j,k,2) + dt * impulse_response * v_on_h ! This definition finds the mean component
+    ! CS%tr(i,j,k,3) = CS%tr(i,j,k,3) - dt * heaviside_factor * u_on_h ! These maps remap to midpoint position
+    ! CS%tr(i,j,k,4) = CS%tr(i,j,k,4) - dt * heaviside_factor * v_on_h ! These maps remap to midpoint position
+    CS%tr(i,j,k,3) = CS%tr(i,j,k,3) - dt * integrated_impulse_response * u_on_h ! These maps remap to mean position
+    CS%tr(i,j,k,4) = CS%tr(i,j,k,4) - dt * integrated_impulse_response * v_on_h ! These maps remap to mean position
   enddo; enddo ; enddo
 end subroutine pde_tracer_column_physics
 
