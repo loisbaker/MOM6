@@ -164,7 +164,7 @@ function filter_integrated_impulse_response(degree, cutoff, window, t)
   ! Finds the integral from -window/2 to t of the impulse response
   integer, intent(in) :: degree, window, t
   real, intent(in) :: cutoff
-  real :: filter_integrated_impulse_response, an, bn, cn, dn, norm_correction
+  real :: filter_integrated_impulse_response, an, bn, cn, dn, norm_correction, factor1, factor2
   integer :: n
 
   real, parameter :: pi = 4.0 * atan(1.0)
@@ -245,8 +245,8 @@ subroutine pde_tracer_column_physics(h_old, h_new, ea, eb, fluxes, dt, G, GV, US
     ! reset and post data (temporarily move this outside of the if statement so we can see fields at all timesteps)
      if (CS%id_tr_u_filt > 0) call post_data(CS%id_tr_u_filt, CS%tr(:,:,:,1), CS%diag)
      if (CS%id_tr_v_filt > 0) call post_data(CS%id_tr_v_filt, CS%tr(:,:,:,2), CS%diag)
-     if (CS%id_tr_u_map > 0) call post_data(CS%id_tr_u_map, CS%tr(:,:,:,3), CS%diag)
-     if (CS%id_tr_v_map > 0) call post_data(CS%id_tr_v_map, CS%tr(:,:,:,4), CS%diag)
+    !  if (CS%id_tr_u_map > 0) call post_data(CS%id_tr_u_map, CS%tr(:,:,:,3), CS%diag)
+    !  if (CS%id_tr_v_map > 0) call post_data(CS%id_tr_v_map, CS%tr(:,:,:,4), CS%diag)
 
     CS%tr(:,:,:,:) = 0.
   end if
@@ -254,8 +254,8 @@ subroutine pde_tracer_column_physics(h_old, h_new, ea, eb, fluxes, dt, G, GV, US
   ! If we want to output these fields every timestep, we do that here
   ! if (CS%id_tr_u_filt > 0) call post_data(CS%id_tr_u_filt, CS%tr(:,:,:,1), CS%diag)
   ! if (CS%id_tr_v_filt > 0) call post_data(CS%id_tr_v_filt, CS%tr(:,:,:,2), CS%diag)
-  ! if (CS%id_tr_u_map > 0) call post_data(CS%id_tr_u_map, CS%tr(:,:,:,3), CS%diag)
-  ! if (CS%id_tr_v_map > 0) call post_data(CS%id_tr_v_map, CS%tr(:,:,:,4), CS%diag)
+  if (CS%id_tr_u_map > 0) call post_data(CS%id_tr_u_map, CS%tr(:,:,:,3), CS%diag)
+  if (CS%id_tr_v_map > 0) call post_data(CS%id_tr_v_map, CS%tr(:,:,:,4), CS%diag)
   
   ! Check if we are within the "midpoint" timestep
   if (abs(CS%position - (real(CS%window) / 2.0)) < (0.5 * dt)) then
