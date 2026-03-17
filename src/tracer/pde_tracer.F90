@@ -161,14 +161,15 @@ function filter_impulse_response(degree, cutoff, window, t)
 end function filter_impulse_response
 
 function filter_integrated_impulse_response(degree, cutoff, window, t)
+  ! Finds the integral from -window/2 to t of the impulse response
   integer, intent(in) :: degree, window, t
   real, intent(in) :: cutoff
-  real :: filter_impulse_response, an, bn, cn, dn, norm_correction
+  real :: filter_integrated_impulse_response, an, bn, cn, dn, norm_correction
   integer :: n
 
   real, parameter :: pi = 4.0 * atan(1.0)
 
-  filter_impulse_response = 0.
+  filter_integrated_impulse_response = 0.
   norm_correction = 0.
 
   do n = 1, degree / 2
@@ -177,12 +178,28 @@ function filter_integrated_impulse_response(degree, cutoff, window, t)
     an = cn / degree
     bn = dn / degree
 
-    filter_impulse_response = filter_impulse_response &
-      + exp(-cn * abs(t)) * (an * cos(dn * abs(t)) + bn * sin(dn * abs(t)))
+    factor1 = (an * cn + bn * dn)/( cn**2 + dn**2)
+    factor2 = ( bn * cn - an * dn )/( cn**2 + dn**2)
 
-    norm_correction = norm_correction + 2 * exp( -cn * window / 2) * (( an * cn + bn * dn)/( cn**2 + dn**2) * cos(dn * window / 2) + ( bn * cn - an * dn )/( cn**2 + dn**2) * sin(dn * window / 2))
+    if (t <= 0) then
+      filter_integrated_impulse_response = filter_integrated_impulse_response &
+        + factor1 * (exp(cn * t) * cos(dn * t) - exp(-cn * window / 2) * cos(dn * window / 2)) &
+        + factor2 * (- exp(cn * t) * sin(dn * t) - exp(-cn * window / 2) * sin(dn * window / 2))
+    else
+      filter_integrated_impulse_response = filter_integrated_impulse_response &
+        - 2 * exp( -cn * t) * (factor1 * cos(dn * t) + factor2 * sin(dn * t))
+    end if
+
+    norm_correction = norm_correction + 2 * exp( -cn * window / 2) * (factor1 * cos(dn * window / 2) + factor2 * sin(dn * window / 2))
   end do
-  filter_impulse_response = filter_impulse_response / (1.0 - norm_correction)
+
+  if (t <= 0) then
+    filter_integrated_impulse_response = filter_integrated_impulse_response / (1.0 - norm_correction)
+
+  else
+    filter_integrated_impulse_response = (1 - filter_integrated_impulse_response) / (1.0 - norm_correction)/2 + 0.5
+  end if
+
 end function filter_integrated_impulse_response
 
 function heaviside(t)
