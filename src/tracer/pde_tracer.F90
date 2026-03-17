@@ -225,7 +225,7 @@ subroutine pde_tracer_column_physics(h_old, h_new, ea, eb, fluxes, dt, G, GV, US
 
   integer :: i, j, k, is, ie, js, je, nz, m
   real, dimension(SZI_(G),SZJ_(G),SZK_(GV)) :: h_work
-  real :: u_on_h, v_on_h, impulse_response, midpoint_mask, heaviside_factor
+  real :: u_on_h, v_on_h, impulse_response, midpoint_mask, heaviside_factor, integrated_impulse_response
 
   is = G%isc ; ie = G%iec ; js = G%jsc ; je = G%jec ; nz = GV%ke
 
