@@ -87,8 +87,8 @@ function register_pde_tracer(HI, GV, param_file, CS, tr_Reg, restart_CS)
        default=5e-5, units="rad s-1")
   
   call get_param(param_file, mdl, "PDE_TRACER_SKIP_ADVECTION", skip_advect, &
-+       "If true, use the PDE tracer in the Eulerian sense, without advection.", &
-+       default=.false.)
+       "If true, use the PDE tracer in the Eulerian sense, without advection.", &
+       default=.false.)
 
   CS%ntr = 4 ! u, v filtered velocities and maps
   allocate(CS%tr(isd:ied,jsd:jed,nz,CS%ntr))
