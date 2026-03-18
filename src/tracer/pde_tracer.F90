@@ -32,6 +32,8 @@ type, public :: pde_tracer_CS ; private
 
    real, pointer :: u_ptr(:,:,:) => NULL()
    real, pointer :: v_ptr(:,:,:) => NULL()
+   real, pointer :: ubtav_ptr(:,:) => NULL()
+   real, pointer :: vbtav_ptr(:,:) => NULL()
 
    integer :: ntr = 0
    type(tracer_registry_type), pointer :: tr_Reg => NULL()
@@ -110,14 +112,17 @@ function register_pde_tracer(HI, GV, param_file, CS, tr_Reg, restart_CS)
   register_pde_tracer = .true.
 end function register_pde_tracer
 
-subroutine register_pde_state_pointers(CS, u, v)
+subroutine register_pde_state_pointers(CS, u, v, ubtav, vbtav)
   type(pde_tracer_CS), pointer :: CS
-  real, dimension(:,:,:), target :: u, v
+  real, optional, dimension(:,:,:), target :: u, v
+  real, optional, dimension(:,:), target :: ubtav, vbtav
 
   if (.not. associated(CS)) return
 
-  CS%u_ptr => u
-  CS%v_ptr => v
+  if (present(u)) CS%u_ptr => u
+  if (present(v)) CS%v_ptr => v
+  if (present(ubtav)) CS%ubtav_ptr => ubtav
+  if (present(vbtav)) CS%vbtav_ptr => vbtav
 
 end subroutine register_pde_state_pointers
 
@@ -242,6 +247,7 @@ subroutine pde_tracer_column_physics(h_old, h_new, ea, eb, fluxes, dt, G, GV, US
   if (.not. associated(CS)) return
 
   if (.not. (associated(CS%u_ptr) .and. associated(CS%v_ptr))) call MOM_error(FATAL, "velocity pointers must be associated")
+  if (.not. (associated(CS%ubtav_ptr) .and. associated(CS%vbtav_ptr))) call MOM_error(FATAL, "bt velocity pointers must be associated")
 
   print *, "pde_tracer_column_physics, dt:", dt, ", position:", CS%position
 

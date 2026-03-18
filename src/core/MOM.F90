@@ -3071,7 +3071,7 @@ subroutine initialize_MOM(Time, Time_init, param_file, dirs, CS, &
   ! Additional calls can be added to MOM_tracer_flow_control.F90.
   call call_tracer_register(G, GV, US, param_file, CS%tracer_flow_CSp, &
                             CS%tracer_Reg, restart_CSp)
-  call tracer_register_state_pointers(CS%tracer_flow_CSp, CS%u, CS%v)
+  call tracer_register_state_pointers(CS%tracer_flow_CSp, u=CS%u, v=CS%v)
 
   call MEKE_alloc_register_restart(HI, US, param_file, CS%MEKE, restart_CSp)
   call set_visc_register_restarts(HI, G, GV, US, param_file, CS%visc, restart_CSp, use_ice_shelf)
@@ -3512,7 +3512,8 @@ subroutine initialize_MOM(Time, Time_init, param_file, dirs, CS, &
               G, GV, US, param_file, diag, CS%dyn_split_RK2_CSp, CS%HA_CSp, restart_CSp, &
               CS%dt, CS%ADp, CS%CDp, MOM_internal_state, CS%VarMix, CS%MEKE, &
               CS%thickness_diffuse_CSp, CS%OBC, CS%update_OBC_CSp, CS%ALE_CSp, CS%set_visc_CSp, &
-              CS%visc, dirs, CS%ntrunc, CS%pbv, calc_dtbt=calc_dtbt, cont_stencil=CS%cont_stencil)
+              CS%visc, dirs, CS%ntrunc, CS%pbv, calc_dtbt=calc_dtbt, cont_stencil=CS%cont_stencil, &
+              tracer_cs=CS%tracer_flow_CSp)
     endif
     if (CS%dtbt_reset_period > 0.0) then
       CS%dtbt_reset_interval = real_to_time(US%T_to_s*CS%dtbt_reset_period)

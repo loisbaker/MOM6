@@ -76,6 +76,7 @@ use MOM_vert_friction,         only : updateCFLtruncationValue, vertFPmix
 use MOM_verticalGrid,          only : verticalGrid_type, get_thickness_units
 use MOM_verticalGrid,          only : get_flux_units, get_tr_flux_units
 use MOM_wave_interface,        only : wave_parameters_CS, Stokes_PGF
+use MOM_tracer_flow_control,   only : tracer_flow_control_CS
 
 implicit none ; private
 
@@ -1347,7 +1348,7 @@ subroutine initialize_dyn_split_RK2(u, v, h, tv, uh, vh, eta, Time, G, GV, US, p
                       diag, CS, HA_CSp, restart_CS, dt, Accel_diag, Cont_diag, MIS, &
                       VarMix, MEKE, thickness_diffuse_CSp,                  &
                       OBC, update_OBC_CSp, ALE_CSp, set_visc, &
-                      visc, dirs, ntrunc, pbv, calc_dtbt, cont_stencil)
+                      visc, dirs, ntrunc, pbv, calc_dtbt, cont_stencil, tracer_cs)
   type(ocean_grid_type),            intent(inout) :: G          !< ocean grid structure
   type(verticalGrid_type),          intent(in)    :: GV         !< ocean vertical grid structure
   type(unit_scale_type),            intent(in)    :: US         !< A dimensional unit scaling type
@@ -1393,6 +1394,7 @@ subroutine initialize_dyn_split_RK2(u, v, h, tv, uh, vh, eta, Time, G, GV, US, p
   type(porous_barrier_type),        intent(in)    :: pbv        !< porous barrier fractional cell metrics
   integer,                          intent(out)   :: cont_stencil !< The stencil for thickness
                                                                 !! from the continuity solver.
+  type(tracer_flow_control_CS), pointer, optional :: tracer_cs
 
   ! local variables
   real, dimension(SZI_(G),SZJ_(G),SZK_(GV)) :: h_tmp ! A temporary copy of the layer thicknesses [H ~> m or kg m-2]
@@ -1594,7 +1596,7 @@ subroutine initialize_dyn_split_RK2(u, v, h, tv, uh, vh, eta, Time, G, GV, US, p
 
   call barotropic_init(u, v, h, Time, G, GV, US, param_file, diag, &
                        CS%barotropic_CSp, restart_CS, calc_dtbt, CS%BT_cont, &
-                       CS%OBC, CS%SAL_CSp, HA_CSp)
+                       CS%OBC, CS%SAL_CSp, HA_CSp, tracer_cs=tracer_cs)
 
   if (.not. query_initialized(CS%diffu, "diffu", restart_CS) .or. &
       .not. query_initialized(CS%diffv, "diffv", restart_CS)) then

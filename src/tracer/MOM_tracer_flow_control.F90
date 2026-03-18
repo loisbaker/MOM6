@@ -302,14 +302,15 @@ subroutine call_tracer_register(G, GV, US, param_file, CS, tr_Reg, restart_CS)
 
 end subroutine call_tracer_register
 
-subroutine tracer_register_state_pointers(CS, u, v)
+subroutine tracer_register_state_pointers(CS, u, v, ubtav, vbtav)
   type(tracer_flow_control_CS), pointer :: CS
-  real, dimension(:,:,:), target :: u, v
+  real, optional, dimension(:,:,:), target :: u, v
+  real, optional, dimension(:,:), target :: ubtav, vbtav
 
   if (.not. associated(CS)) call MOM_error(FATAL, "tracer_register_state_pointers:" // &
        "Module must be initialized via call_tracer_register before it is used.")
 
-  if (CS%use_pde_tracer) call register_pde_state_pointers(CS%pde_tracer_CSp, u, v)
+  if (CS%use_pde_tracer) call register_pde_state_pointers(CS%pde_tracer_CSp, u=u, v=v, ubtav=ubtav, vbtav=vbtav)
 
 end subroutine tracer_register_state_pointers
 

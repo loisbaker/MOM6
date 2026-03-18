@@ -34,6 +34,7 @@ use MOM_variables, only : BT_cont_type, alloc_bt_cont_type
 use MOM_verticalGrid, only : verticalGrid_type
 use MOM_variables, only : accel_diag_ptrs
 use MOM_wave_drag, only : wave_drag_init, wave_drag_calc, wave_drag_CS
+use MOM_tracer_flow_control,   only : tracer_flow_control_CS, tracer_register_state_pointers
 
 implicit none ; private
 
@@ -5299,7 +5300,8 @@ end subroutine bt_mass_source
 !! barotropic calculation and initializes any barotropic fields that have not
 !! already been initialized.
 subroutine barotropic_init(u, v, h, Time, G, GV, US, param_file, diag, CS, &
-                           restart_CS, calc_dtbt, BT_cont, OBC, SAL_CSp, HA_CSp)
+                           restart_CS, calc_dtbt, BT_cont, OBC, SAL_CSp, HA_CSp, &
+                           tracer_cs)
   type(ocean_grid_type),   intent(inout) :: G    !< The ocean's grid structure.
   type(verticalGrid_type), intent(in)    :: GV   !< The ocean's vertical grid structure.
   type(unit_scale_type),   intent(in)    :: US   !< A dimensional unit scaling type
@@ -5325,6 +5327,7 @@ subroutine barotropic_init(u, v, h, Time, G, GV, US, param_file, diag, CS, &
                                                  !! SAL module.
   type(harmonic_analysis_CS), target, optional :: HA_CSp !< A pointer to the control structure of the
                                                  !! harmonic analysis module
+  type(tracer_flow_control_CS), pointer, optional :: tracer_cs
 
   ! This include declares and sets the variable "version".
 # include "version_variable.h"
@@ -6134,6 +6137,8 @@ subroutine barotropic_init(u, v, h, Time, G, GV, US, param_file, diag, CS, &
     enddo ; enddo ; enddo
   endif
 
+  if (present(tracer_cs)) call tracer_register_state_pointers(tracer_cs, ubtav=CS%ubtav, vbtav=CS%vbtav)
+  
   if (CS%gradual_BT_ICs) then
     if (.NOT.query_initialized(CS%ubt_IC,"ubt_IC",restart_CS) .or. &
         .NOT.query_initialized(CS%vbt_IC,"vbt_IC",restart_CS)) then
