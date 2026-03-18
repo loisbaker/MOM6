@@ -279,14 +279,12 @@ subroutine pde_tracer_column_physics(h_old, h_new, ea, eb, fluxes, dt, G, GV, US
   else
     midpoint_mask = 0.0
   end if
-
-  ! every timestep, add the impulse response
-  do k = 1,nz 
+  
+  do j = js,je ; do i = is,ie
     ! interpolations onto tracer point of barotropic velocities 
     ubt_on_h = (CS%ubtav_ptr(I-1,j) + CS%ubtav_ptr(I,j)) / 2
     vbt_on_h = (CS%vbtav_ptr(i,J-1) + CS%vbtav_ptr(i,J)) / 2
-
-    do j = js,je ; do i = is,ie
+    do k = 1,nz 
       ! interpolations onto tracer point of full velocities 
       u_on_h = (CS%u_ptr(I-1,j,k) + CS%u_ptr(I,j,k)) / 2
       v_on_h = (CS%v_ptr(i,J-1,k) + CS%v_ptr(i,J,k)) / 2
@@ -305,8 +303,8 @@ subroutine pde_tracer_column_physics(h_old, h_new, ea, eb, fluxes, dt, G, GV, US
       CS%tr(i,j,k,4) = CS%tr(i,j,k,4) - dt * heaviside_factor * v_on_h ! These maps remap to midpoint position using the full velocity
       ! CS%tr(i,j,k,3) = CS%tr(i,j,k,3) - dt * integrated_impulse_response * u_on_h ! These maps remap to mean position
       ! CS%tr(i,j,k,4) = CS%tr(i,j,k,4) - dt * integrated_impulse_response * v_on_h ! These maps remap to mean position
-    enddo; enddo 
-  enddo
+    enddo
+  enddo; enddo
 end subroutine pde_tracer_column_physics
 
 subroutine pde_tracer_end(CS)
