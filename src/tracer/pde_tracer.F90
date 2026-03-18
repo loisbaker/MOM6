@@ -9,6 +9,7 @@ use MOM_hor_index, only : hor_index_type
 use MOM_io, only : vardesc, var_desc
 use MOM_restart, only : MOM_restart_CS
 use MOM_time_manager, only : time_type
+use MOM_tracer_advect_schemes, only : ADVECT_NONE
 use MOM_tracer_diabatic, only : tracer_vertdiff, applyTracerBoundaryFluxesInOut
 use MOM_tracer_registry, only : register_tracer, tracer_registry_type
 use MOM_unit_scaling, only : unit_scale_type
@@ -31,6 +32,8 @@ type, public :: pde_tracer_CS ; private
 
    real, pointer :: u_ptr(:,:,:) => NULL()
    real, pointer :: v_ptr(:,:,:) => NULL()
+   real, pointer :: ubtav_ptr(:,:) => NULL()
+   real, pointer :: vbtav_ptr(:,:) => NULL()
 
    integer :: ntr = 0
    type(tracer_registry_type), pointer :: tr_Reg => NULL()
@@ -59,7 +62,8 @@ function register_pde_tracer(HI, GV, param_file, CS, tr_Reg, restart_CS)
   real, pointer :: tr_ptr(:,:,:) => NULL()
 
   integer :: isd, ied, jsd, jed, nz
-  integer :: m
+  integer :: m, advect_scheme
+  logical :: skip_advect
 
   isd = HI%isd ; ied = HI%ied ; jsd = HI%jsd ; jed = HI%jed ; nz = GV%ke
 
@@ -81,9 +85,16 @@ function register_pde_tracer(HI, GV, param_file, CS, tr_Reg, restart_CS)
   call get_param(param_file, mdl, "PDE_TRACER_FILTER_CUTOFF", CS%filter_cutoff, &
        "The cutoff angular frequency (in [rad s-1]) of the Butterworth filter.", &
        default=5e-5, units="rad s-1")
+  
+  call get_param(param_file, mdl, "PDE_TRACER_SKIP_ADVECTION", skip_advect, &
++       "If true, use the PDE tracer in the Eulerian sense, without advection.", &
++       default=.false.)
 
   CS%ntr = 4 ! u, v filtered velocities and maps
   allocate(CS%tr(isd:ied,jsd:jed,nz,CS%ntr))
+
+  advect_scheme = -1
+  if (skip_advect) advect_scheme = ADVECT_NONE
 
   do m = 1, CS%ntr
     write(var_name(1:13), '(a6,i2.2)') 'tracer_filt', m
@@ -91,7 +102,8 @@ function register_pde_tracer(HI, GV, param_file, CS, tr_Reg, restart_CS)
     tr_ptr => CS%tr(:,:,:,m)
 
     call register_tracer(tr_ptr, tr_Reg, param_file, HI, GV, tr_desc=tr_desc, &
-         registry_diags=.false., restart_CS=restart_CS, mandatory=.false.)
+         registry_diags=.false., restart_CS=restart_CS, mandatory=.false., &
+         advect_scheme=advect_scheme)
   end do
 
   CS%tr_Reg => tr_Reg
@@ -100,14 +112,17 @@ function register_pde_tracer(HI, GV, param_file, CS, tr_Reg, restart_CS)
   register_pde_tracer = .true.
 end function register_pde_tracer
 
-subroutine register_pde_state_pointers(CS, u, v)
+subroutine register_pde_state_pointers(CS, u, v, ubtav, vbtav)
   type(pde_tracer_CS), pointer :: CS
-  real, dimension(:,:,:), target :: u, v
+  real, optional, dimension(:,:,:), target :: u, v
+  real, optional, dimension(:,:), target :: ubtav, vbtav
 
   if (.not. associated(CS)) return
 
-  CS%u_ptr => u
-  CS%v_ptr => v
+  if (present(u)) CS%u_ptr => u
+  if (present(v)) CS%v_ptr => v
+  if (present(ubtav)) CS%ubtav_ptr => ubtav
+  if (present(vbtav)) CS%vbtav_ptr => vbtav
 
 end subroutine register_pde_state_pointers
 
@@ -232,12 +247,12 @@ subroutine pde_tracer_column_physics(h_old, h_new, ea, eb, fluxes, dt, G, GV, US
   if (.not. associated(CS)) return
 
   if (.not. (associated(CS%u_ptr) .and. associated(CS%v_ptr))) call MOM_error(FATAL, "velocity pointers must be associated")
+  if (.not. (associated(CS%ubtav_ptr) .and. associated(CS%vbtav_ptr))) call MOM_error(FATAL, "bt velocity pointers must be associated")
 
   print *, "pde_tracer_column_physics, dt:", dt, ", position:", CS%position
 
-  ! XXX check that dt divides CS%window evenly
   CS%position = CS%position + dt
-  !if (CS%position == CS%window) then
+  
   if (abs(CS%position - CS%window) < 0.5 * dt) then
     CS%position = 0
     print *, "At window endpoint, resetting filter tracers"
@@ -245,8 +260,8 @@ subroutine pde_tracer_column_physics(h_old, h_new, ea, eb, fluxes, dt, G, GV, US
     ! reset and post data (temporarily move this outside of the if statement so we can see fields at all timesteps)
      if (CS%id_tr_u_filt > 0) call post_data(CS%id_tr_u_filt, CS%tr(:,:,:,1), CS%diag)
      if (CS%id_tr_v_filt > 0) call post_data(CS%id_tr_v_filt, CS%tr(:,:,:,2), CS%diag)
-    !  if (CS%id_tr_u_map > 0) call post_data(CS%id_tr_u_map, CS%tr(:,:,:,3), CS%diag)
-    !  if (CS%id_tr_v_map > 0) call post_data(CS%id_tr_v_map, CS%tr(:,:,:,4), CS%diag)
+     if (CS%id_tr_u_map > 0) call post_data(CS%id_tr_u_map, CS%tr(:,:,:,3), CS%diag)
+     if (CS%id_tr_v_map > 0) call post_data(CS%id_tr_v_map, CS%tr(:,:,:,4), CS%diag)
 
     CS%tr(:,:,:,:) = 0.
   end if
@@ -254,8 +269,8 @@ subroutine pde_tracer_column_physics(h_old, h_new, ea, eb, fluxes, dt, G, GV, US
   ! If we want to output these fields every timestep, we do that here
   ! if (CS%id_tr_u_filt > 0) call post_data(CS%id_tr_u_filt, CS%tr(:,:,:,1), CS%diag)
   ! if (CS%id_tr_v_filt > 0) call post_data(CS%id_tr_v_filt, CS%tr(:,:,:,2), CS%diag)
-  if (CS%id_tr_u_map > 0) call post_data(CS%id_tr_u_map, CS%tr(:,:,:,3), CS%diag)
-  if (CS%id_tr_v_map > 0) call post_data(CS%id_tr_v_map, CS%tr(:,:,:,4), CS%diag)
+  ! if (CS%id_tr_u_map > 0) call post_data(CS%id_tr_u_map, CS%tr(:,:,:,3), CS%diag)
+  ! if (CS%id_tr_v_map > 0) call post_data(CS%id_tr_v_map, CS%tr(:,:,:,4), CS%diag)
   
   ! Check if we are within the "midpoint" timestep
   if (abs(CS%position - (real(CS%window) / 2.0)) < (0.5 * dt)) then

@@ -11,12 +11,14 @@ implicit none ; public
 integer, parameter :: ADVECT_PLM        = 0 !< PLM advection scheme
 integer, parameter :: ADVECT_PPMH3      = 1 !< PPM:H3 advection scheme
 integer, parameter :: ADVECT_PPM        = 2 !< PPM advection scheme
+integer, parameter :: ADVECT_NONE       = 3 !< No advection scheme (used for tracers that are not advected)
 
 !> Documentation for tracer advection schemes
 character(len=*), parameter :: TracerAdvectionSchemeDoc = &
                  "  PLM    - Piecewise Linear Method\n"//&
                  "  PPM:H3 - Piecewise Parabolic Method (Huyhn 3rd order)\n"// &
-                 "  PPM    - Piecewise Parabolic Method (Colella-Woodward)"
+                 "  PPM    - Piecewise Parabolic Method (Colella-Woodward)\n"// &
+                 "  NONE   - No advection (tracers not advected)"
 
 contains
 
@@ -34,6 +36,8 @@ subroutine set_tracer_advect_scheme(scheme_value, advect_scheme_name)
       scheme_value = ADVECT_PPMH3
     case ("PPM")
       scheme_value = ADVECT_PPM
+    case ("NONE")
+      scheme_value = ADVECT_NONE
     case default
       call MOM_error(FATAL, "set_tracer_advect_scheme: "//&
            "Unknown TRACER_ADVECTION_SCHEME = "//trim(advect_scheme_name))

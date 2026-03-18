@@ -18,7 +18,7 @@ use MOM_open_boundary,   only : OBC_segment_type
 use MOM_tracer_registry, only : tracer_registry_type, tracer_type
 use MOM_unit_scaling,    only : unit_scale_type
 use MOM_verticalGrid,    only : verticalGrid_type
-use MOM_tracer_advect_schemes, only : ADVECT_PLM, ADVECT_PPMH3, ADVECT_PPM
+use MOM_tracer_advect_schemes, only : ADVECT_PLM, ADVECT_PPMH3, ADVECT_PPM, ADVECT_NONE
 use MOM_tracer_advect_schemes, only : set_tracer_advect_scheme, TracerAdvectionSchemeDoc
 implicit none ; private
 
@@ -147,6 +147,8 @@ subroutine advect_tracer(h_end, uhtr, vhtr, OBC, dt, G, GV, US, CS, Reg, x_first
        else
          stencil_local = 3
        endif
+     elseif (local_advect_scheme(m) == ADVECT_NONE) then
+       stencil_local = 0
      endif
      stencil = max(stencil, stencil_local)
   enddo
@@ -542,6 +544,8 @@ subroutine advect_x(Tr, hprev, uhr, uh_neglect, OBC, domore_u, ntr, Idt, &
     enddo
 
     do m=1,ntr
+
+      if (advect_schemes(m) == ADVECT_NONE) cycle
 
       if ((advect_schemes(m) == ADVECT_PPM) .or. (advect_schemes(m) == ADVECT_PPMH3)) then
         do I=is-1,ie
@@ -948,6 +952,8 @@ subroutine advect_y(Tr, hprev, vhr, vh_neglect, OBC, domore_v, ntr, Idt, &
 
     do m=1,ntr
 
+      if (advect_schemes(m) == ADVECT_NONE) cycle
+      
       if ((advect_schemes(m) == ADVECT_PPM) .or. (advect_schemes(m) == ADVECT_PPMH3)) then
         do i=is,ie
           ! centre cell depending on upstream direction
